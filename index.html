@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>M3U ⇄ Xtream Converter (client)</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:24px;line-height:1.4}
+    .card{max-width:920px;margin:auto;padding:20px;border:1px solid #e6e6e6;border-radius:12px}
+    input,button,textarea{font-size:14px}
+    input[type="text"],textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px}
+    textarea{height:180px}
+    .row{display:flex;gap:10px}
+    .row > *{flex:1}
+    .muted{color:#6b7280;font-size:12px}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+    .out pre{white-space:pre-wrap;background:#0b1020;color:#e5e7eb;padding:12px;border-radius:8px;overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>M3U ⇄ Xtream (client)</h2>
+    <p>Collez un lien M3U ou vos identifiants Xtream. Tout se fait localement dans votre navigateur.</p>
+
+    <h3>Depuis un lien M3U</h3>
+    <input id="m3uUrl" type="text" placeholder="http://host:port/get.php?username=U&password=P&type=m3u_plus&output=ts" />
+    <button id="btnM3U">Convertir depuis M3U</button>
+
+    <h3>Depuis Xtream (base + U/P)</h3>
+    <div class="row">
+      <input id="baseUrl" type="text" placeholder="http://host:port" />
+    </div>
+    <div class="row">
+      <input id="username" type="text" placeholder="username" />
+      <input id="password" type="text" placeholder="password" />
+    </div>
+    <button id="btnXT">Convertir depuis Xtream</button>
+
+    <h3>Résultats</h3>
+    <div class="out"><pre id="out">—</pre></div>
+
+    <h3>Bloc copiable</h3>
+    <textarea id="block" placeholder="Zone copiable"></textarea>
+    <button id="copy">Copier</button>
+    <p class="muted">Schémas usuels : get.php (M3U/M3U_PLUS), xmltv.php (EPG), player_api.php (Player API).</p>
+  </div>
+
+<script>
+  function normBase(u){
+    try{
+      const url = new URL(u);
+      return url.origin; // http(s)://host:port
+    }catch(e){
+      // si l'entrée est déjà "http://host:port" sans slash final
+      return (u||"").replace(/\\/$/, "");
+    }
+  }
+  function q(url,key){
+    try{ return new URL(url).searchParams.get(key); }catch(e){ return null; }
+  }
+  function parseM3U(m3uUrl){
+    const u = new URL(m3uUrl);
+    const base = u.origin; // on prend l’origin, robuste même si chemin ≠ /get.php
+    const username = q(m3uUrl,"username") || "";
+    const password = q(m3uUrl,"password") || "";
+    return { baseUrl: base, username, password };
+  }
+  function buildAll(login){
+    const baseUrl = normBase(login.baseUrl);
+    const username = login.username || "";
+    const password = login.password || "";
+    const m3u = baseUrl + "/get.php?username=" + encodeURIComponent(username) +
+                "&password=" + encodeURIComponent(password) + "&type=m3u&output=ts";
+    const m3u_plus = baseUrl + "/get.php?username=" + encodeURIComponent(username) +
+                "&password=" + encodeURIComponent(password) + "&type=m3u_plus&output=ts";
+    const epg = baseUrl + "/xmltv.php?username=" + encodeURIComponent(username) +
+                "&password=" + encodeURIComponent(password);
+    const player_api = baseUrl + "/player_api.php?username=" + encodeURIComponent(username) +
+                "&password=" + encodeURIComponent(password);
+    const text_block = [
+      "Nom du serveur:",
+      "(a definir)",
+      "username:",
+      username,
+      "password:",
+      password,
+      "url serveur:",
+      baseUrl,
+      "",
+      "Expiration:",
+      "(a definir)"
+    ].join("\\n");
+    return { baseUrl, username, password, m3u, m3u_plus, epg, player_api, text_block };
+  }
+
+  const $ = (s)=>document.querySelector(s);
+  const out = $("#out");
+  const block = $("#block");
+
+  $("#btnM3U").onclick = ()=>{
+    try{
+      const m3uUrl = $("#m3uUrl").value.trim();
+      if(!m3uUrl) return alert("Entrez une URL M3U");
+      const login = parseM3U(m3uUrl);
+      if(!login.baseUrl || !login.username || !login.password){
+        alert("Impossible d'extraire baseUrl/username/password depuis le M3U");
+        return;
+      }
+      const res = buildAll(login);
+      out.textContent = JSON.stringify(res, null, 2);
+      block.value = res.text_block;
+    }catch(e){
+      alert("URL M3U invalide");
+    }
+  };
+
+  $("#btnXT").onclick = ()=>{
+    const baseUrl = $("#baseUrl").value.trim();
+    const username = $("#username").value.trim();
+    const password = $("#password").value.trim();
+    if(!baseUrl || !username || !password){
+      alert("Renseigne baseUrl, username et password");
+      return;
+    }
+    const res = buildAll({ baseUrl, username, password });
+    out.textContent = JSON.stringify(res, null, 2);
+    block.value = res.text_block;
+  };
+
+  $("#copy").onclick = async ()=>{
+    try{
+      await navigator.clipboard.writeText(block.value || "");
+      alert("Copié !");
+    }catch(e){
+      alert("Copie impossible");
+    }
+  };
+</script>
+</body>
+</html>
